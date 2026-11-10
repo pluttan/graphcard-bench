@@ -15,7 +15,7 @@ ENV DEBIAN_FRONTEND=noninteractive LANG=C.UTF-8
 # The toolchain, python with venv, the tools that machine.txt reads and the libraries that the
 # Memgraph package depends on.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        ca-certificates curl g++ make python3 python3-venv procps numactl hostname \
+        ca-certificates curl g++ make python3 python3-venv procps numactl hostname xz-utils \
         openssl libatomic1 libpython3.12t64 libseccomp2 libssl3t64 libuuid1 \
     && rm -rf /var/lib/apt/lists/*
 

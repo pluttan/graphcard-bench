@@ -67,6 +67,18 @@ $(VENV)/.ok: requirements.txt
 
 data: $(LOAD)/transfer2.csv $(PARAMS)
 
+# SF1 comes with the repo, already prepared by prep.sh: dataset/sf1.tar.xz holds load/ and the TCR1
+# parameters. datasets.ldbcouncil.org sits behind Cloudflare, which some networks hold to a few
+# bytes a second. The larger SF still come from there.
+SEED := $(wildcard dataset/sf$(strip $(SF)).tar.xz)
+
+ifneq ($(SEED),)
+$(LOAD)/transfer2.csv: $(SEED)
+	mkdir -p $(SFD) && tar -C $(SFD) -xJf $< && touch $@
+
+$(PARAMS): $(LOAD)/transfer2.csv
+	test -f $@ && touch $@
+else
 # The server of LDBC stalls now and then, even before the first byte: curl gives up after 30 s
 # without data and starts again from where it stopped, every 5 s. The archive comes to .part and
 # takes its name only when whole, so a broken run does not leave half a file for make to trust.
@@ -83,6 +95,7 @@ $(PARAMS):
 	mkdir -p $(SFD)/params && curl -fL --retry 5 -o $(SFD)/params.zip \
 		https://datasets.ldbcouncil.org/finbench/sf$(strip $(SF))_read_params.zip && \
 	$(PY) -c "import zipfile; zipfile.ZipFile('$(SFD)/params.zip').extractall('$(SFD)/params')"
+endif
 
 # ==========================
 # ===  Memgraph           ===

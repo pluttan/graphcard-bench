@@ -35,12 +35,16 @@ docker run --rm --init --hostname "$(hostname)" -v gcb-data:/gcb/data -v "$PWD":
 
 Модули Memgraph и замеры на C++ контейнер собирает при старте, с ключом `-march=native`. Поэтому один образ работает на любом процессоре x86-64.
 
+## Данные
+
+FinBench SF1 лежит в репозитории, в файле `dataset/sf1.tar.xz`. В нём таблицы счетов, переводов и снятий после `bench/prep.sh` и параметры запроса TCR1. Поэтому для SF1 пакет ничего не качает. Данные SF10 `make` качает с `datasets.ldbcouncil.org`. Этот сервер стоит за Cloudflare, и в некоторых сетях он отдаёт несколько байт в секунду.
+
 ## Запуск без Docker
 
 Нужно:
 
 - Ubuntu 22.04, Ubuntu 24.04 или Debian 12 на x86-64;
-- `g++` с C++20, `make`, `curl`, `dpkg-deb`, `python3` не ниже 3.10;
+- `g++` с C++20, `make`, `curl`, `xz`, `dpkg-deb`, `python3` не ниже 3.10;
 - библиотеки из зависимостей пакета Memgraph: `libpython3`, `libseccomp2`, `libatomic1`, `libuuid1`, `libssl3`;
 - место на диске: около 4 ГБ для SF1 и около 20 ГБ для SF10 (оценка);
 - права root не нужны: Memgraph распаковывается в каталог репозитория.
@@ -124,6 +128,7 @@ memgraph one query 3.738 s | 24 clients 0.934 s | card 0.0517 s + host 0.1242 s 
 | Путь | Что лежит |
 |---|---|
 | `Dockerfile`, `docker/run.sh` | образ на Ubuntu 24.04 с Memgraph из `memgraph/memgraph` и его старт: `make all`, `make gpu`, файлы в `/out` |
+| `dataset/sf1.tar.xz` | FinBench SF1 с `datasets.ldbcouncil.org` после `bench/prep.sh` и параметры TCR1 |
 | `include/text_search_config.hpp` | заголовок Memgraph 3.12.0 под лицензией BSL, без него не собирается `mgp.hpp`, а в пакете его нет |
 | `bench/mg.sh` | запуск Memgraph из пакета, который `make` распаковал в `memgraph/` |
 | `bench/prep.sh`, `bench/remap.awk` | подготовка FinBench: склейка таблиц и нумерация счетов с нуля |
