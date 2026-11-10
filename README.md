@@ -11,8 +11,10 @@
 Соберите образ прямо из репозитория:
 
 ```sh
-docker build -t graphcard-bench https://github.com/pluttan/graphcard-bench.git
+docker build -t graphcard-bench https://github.com/pluttan/graphcard-bench.git#main
 ```
+
+Ветку `#main` пишите явно. Старый сборщик Docker без buildx иначе ищет ветку `master` и падает с ошибкой `couldn't find remote ref master`.
 
 Перейдите в каталог для результатов и запустите замер:
 

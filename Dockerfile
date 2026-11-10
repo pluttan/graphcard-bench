@@ -1,7 +1,8 @@
 # graphcard-bench in a container: Ubuntu 24.04 with Memgraph, the toolchain and the venv inside.
 # The C++ parts are built at start with -march=native, so one image runs on any x86-64 host.
-#   docker build -t graphcard-bench https://github.com/pluttan/graphcard-bench.git
-#   docker run --rm --hostname "$(hostname)" -v gcb-data:/gcb/data -v "$PWD":/out graphcard-bench
+#   docker build -t graphcard-bench https://github.com/pluttan/graphcard-bench.git#main
+#   docker run --rm --init --hostname "$(hostname)" -v gcb-data:/gcb/data -v "$PWD":/out graphcard-bench
+# The branch goes in the address: the legacy builder without buildx looks for master otherwise.
 FROM ubuntu:24.04
 
 ARG MG_VER=3.12.0
