@@ -144,6 +144,7 @@ build/bw: bench/bw.cpp
 # The GPU alone, as on the L40: sort, batched search and AND of sorted arrays, with cupy. cupy-cuda12x
 # takes the CUDA 12 runtime and NVRTC. On a driver of CUDA 12.x both follow the driver: kernels from a
 # newer NVRTC do not load on an older driver. A driver of CUDA 13 and newer runs the last 12.9.
+# cuRAND fills the keys; its kernels come built for every card, so any 12.x of it runs on any 12.x.
 # The card with the most free memory runs it, since the others may serve other work.
 DRIVER_CUDA := $(shell nvidia-smi 2>/dev/null | grep -o 'CUDA Version: [0-9.]*' | grep -o '[0-9.]*$$')
 CUDA_PIN    := $(shell v=$(DRIVER_CUDA); m=$${v%%.*}; [ -n "$$m" ] && { [ $$m -eq 12 ] && echo $$v; [ $$m -gt 12 ] && echo 12.9; }; true)
@@ -152,7 +153,8 @@ GPU_FREE    := $(shell nvidia-smi --query-gpu=index,memory.free --format=csv,noh
 gpu: $(VENV)/.ok
 	@test -n "$(DRIVER_CUDA)" || { echo "no nvidia-smi: no GPU to bench"; exit 1; }
 	@test -n "$(CUDA_PIN)" || { echo "the driver gives CUDA $(DRIVER_CUDA): cupy-cuda12x needs 12 or newer"; exit 1; }
-	$(PY) -m pip install -q cupy-cuda12x "nvidia-cuda-runtime-cu12==$(CUDA_PIN).*" "nvidia-cuda-nvrtc-cu12==$(CUDA_PIN).*"
+	$(PY) -m pip install -q cupy-cuda12x "nvidia-cuda-runtime-cu12==$(CUDA_PIN).*" "nvidia-cuda-nvrtc-cu12==$(CUDA_PIN).*" \
+		nvidia-curand-cu12
 	mkdir -p $(OUT) && CUDA_VISIBLE_DEVICES=$(GPU_FREE) $(PY) -u bench/gpubench.py 1000000 16000000 128000000 | tee $(OUT)/gpu.txt
 
 pack:

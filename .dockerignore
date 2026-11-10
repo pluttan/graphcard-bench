@@ -1,0 +1,12 @@
+# What a run on the host leaves here must not come into the image over its own copies.
+.git
+.claude
+venv
+memgraph
+run
+data
+build
+results
+results-*.tgz
+__pycache__
+*.pyc
