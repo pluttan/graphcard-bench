@@ -1,0 +1,9 @@
+/venv/
+/memgraph/
+/run/
+/data/
+/build/
+/results/
+/results-*.tgz
+__pycache__/
+*.pyc
