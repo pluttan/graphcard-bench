@@ -67,9 +67,14 @@ $(VENV)/.ok: requirements.txt
 
 data: $(LOAD)/transfer2.csv $(PARAMS)
 
+# The server of LDBC stalls now and then, even before the first byte: curl gives up after 30 s
+# without data and starts again from where it stopped, every 5 s. The archive comes to .part and
+# takes its name only when whole, so a broken run does not leave half a file for make to trust.
 $(SFD)/sf$(strip $(SF)).tar.gz:
-	mkdir -p $(SFD) && curl -fL -C - --retry 20 --speed-time 30 --speed-limit 10000 -o $@ \
-		https://datasets.ldbcouncil.org/finbench/sf$(strip $(SF)).tar.gz
+	mkdir -p $(SFD) && ok= && for i in $$(seq 200); do \
+		curl -fL -C - --speed-time 30 --speed-limit 10000 -o $@.part \
+			https://datasets.ldbcouncil.org/finbench/sf$(strip $(SF)).tar.gz && { ok=1; break; }; \
+		sleep 5; done && test -n "$$ok" && mv $@.part $@
 
 $(LOAD)/transfer2.csv: $(SFD)/sf$(strip $(SF)).tar.gz
 	tar -C $(SFD) -xzf $< && bench/prep.sh $(SFD)/sf$(strip $(SF))/raw $(LOAD)
@@ -136,15 +141,18 @@ build/cpubench: bench/cpubench.cpp
 build/bw: bench/bw.cpp
 	mkdir -p build && $(CXX) -O3 -march=native -pthread -o $@ $<
 
-# The GPU alone, as on the L40: sort, batched search and AND of sorted arrays, with cupy. NVRTC and
-# the runtime follow the CUDA of the driver: kernels from a newer NVRTC do not load on an older
-# driver. The card with the most free memory runs it, since the others may serve other work.
+# The GPU alone, as on the L40: sort, batched search and AND of sorted arrays, with cupy. cupy-cuda12x
+# takes the CUDA 12 runtime and NVRTC. On a driver of CUDA 12.x both follow the driver: kernels from a
+# newer NVRTC do not load on an older driver. A driver of CUDA 13 and newer runs the last 12.9.
+# The card with the most free memory runs it, since the others may serve other work.
 DRIVER_CUDA := $(shell nvidia-smi 2>/dev/null | grep -o 'CUDA Version: [0-9.]*' | grep -o '[0-9.]*$$')
+CUDA_PIN    := $(shell v=$(DRIVER_CUDA); m=$${v%%.*}; [ -n "$$m" ] && { [ $$m -eq 12 ] && echo $$v; [ $$m -gt 12 ] && echo 12.9; }; true)
 GPU_FREE    := $(shell nvidia-smi --query-gpu=index,memory.free --format=csv,noheader,nounits 2>/dev/null | sort -t, -k2 -n -r | head -1 | cut -d, -f1)
 
 gpu: $(VENV)/.ok
 	@test -n "$(DRIVER_CUDA)" || { echo "no nvidia-smi: no GPU to bench"; exit 1; }
-	$(PY) -m pip install -q cupy-cuda12x "nvidia-cuda-runtime-cu12==$(DRIVER_CUDA).*" "nvidia-cuda-nvrtc-cu12==$(DRIVER_CUDA).*"
+	@test -n "$(CUDA_PIN)" || { echo "the driver gives CUDA $(DRIVER_CUDA): cupy-cuda12x needs 12 or newer"; exit 1; }
+	$(PY) -m pip install -q cupy-cuda12x "nvidia-cuda-runtime-cu12==$(CUDA_PIN).*" "nvidia-cuda-nvrtc-cu12==$(CUDA_PIN).*"
 	mkdir -p $(OUT) && CUDA_VISIBLE_DEVICES=$(GPU_FREE) $(PY) -u bench/gpubench.py 1000000 16000000 128000000 | tee $(OUT)/gpu.txt
 
 pack:
