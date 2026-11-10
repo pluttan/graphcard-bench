@@ -6,7 +6,7 @@
 
 ## Запуск в Docker
 
-Нужен Docker на x86-64. Для замера GPU нужен ещё NVIDIA Container Toolkit, на DGX OS он стоит.
+Нужен Docker на x86-64. Для замера GPU нужен ещё NVIDIA Container Toolkit, на DGX OS он стоит. Сборка берёт с Docker Hub образы `ubuntu:24.04` и `memgraph/memgraph:3.12.0`. Сервер `download.memgraph.com` бывает медленным, поэтому образ его не использует.
 
 Соберите образ прямо из репозитория:
 
@@ -123,7 +123,8 @@ memgraph one query 3.738 s | 24 clients 0.934 s | card 0.0517 s + host 0.1242 s 
 
 | Путь | Что лежит |
 |---|---|
-| `Dockerfile`, `docker/run.sh` | образ на Ubuntu 24.04 и его старт: `make all`, `make gpu`, файлы в `/out` |
+| `Dockerfile`, `docker/run.sh` | образ на Ubuntu 24.04 с Memgraph из `memgraph/memgraph` и его старт: `make all`, `make gpu`, файлы в `/out` |
+| `include/text_search_config.hpp` | заголовок Memgraph 3.12.0 под лицензией BSL, без него не собирается `mgp.hpp`, а в пакете его нет |
 | `bench/mg.sh` | запуск Memgraph из пакета, который `make` распаковал в `memgraph/` |
 | `bench/prep.sh`, `bench/remap.awk` | подготовка FinBench: склейка таблиц и нумерация счетов с нуля |
 | `bench/load.py` | загрузка счетов, переводов и снятий в Memgraph |

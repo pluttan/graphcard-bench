@@ -28,7 +28,7 @@ PARAMS   := $(SFD)/params/sf$(strip $(SF))_read_params/complex_1_param.csv
 OUT      := $(CURDIR)/results/$(shell hostname)-sf$(strip $(SF))
 MG_INC   := $(MG_ROOT)/usr/include/memgraph
 CXX      ?= g++
-MODFLAGS := -std=c++20 -O3 -march=native -fPIC -shared -pthread -I$(MG_INC) -I$(MG_ROOT)/extra -It4
+MODFLAGS := -std=c++20 -O3 -march=native -fPIC -shared -pthread -I$(MG_INC) -Iinclude -It4
 export MG_ROOT MG_HOME MG_PORT
 
 all: deps data module start load bench stop pack
@@ -37,22 +37,22 @@ all: deps data module start load bench stop pack
 # ===  Install           ===
 # ==========================
 
-deps: $(MG_ROOT)/usr/lib/memgraph/memgraph $(MG_ROOT)/extra/text_search_config.hpp $(VENV)/.ok
+deps: $(MG_ROOT)/usr/lib/memgraph/memgraph $(VENV)/.ok
 
-# Memgraph from its .deb, unpacked here: no root and nothing outside this directory.
+# Memgraph from its .deb, unpacked here: no root and nothing outside this directory. The image
+# takes it from memgraph/memgraph instead. download.memgraph.com may crawl: curl starts again from
+# where it stopped, as for FinBench. The .deb of 3.12.0 lacks text_search_config.hpp of mgp.hpp,
+# so include/ keeps it from the same tag of the source.
 $(MG_ROOT)/usr/lib/memgraph/memgraph:
 	. /etc/os-release && case "$$ID-$$VERSION_ID" in \
 		ubuntu-22.04|ubuntu-24.04|debian-12) d="$$ID-$$VERSION_ID";; \
 		*) echo "no Memgraph package for $$ID $$VERSION_ID: use Ubuntu 22.04, 24.04 or Debian 12"; exit 1;; esac && \
-	mkdir -p $(MG_ROOT) && curl -fL --retry 5 -o $(MG_ROOT)/memgraph.deb \
-		https://download.memgraph.com/memgraph/v$(MG_VER)/$$d/memgraph_$(MG_VER)-1_amd64.deb && \
-	dpkg-deb -x $(MG_ROOT)/memgraph.deb $(MG_ROOT) && rm $(MG_ROOT)/memgraph.deb
+	mkdir -p $(MG_ROOT) && ok= && for i in $$(seq 200); do \
+		curl -fL -C - --speed-time 30 --speed-limit 10000 -o $(MG_ROOT)/memgraph.deb.part \
+			https://download.memgraph.com/memgraph/v$(MG_VER)/$$d/memgraph_$(MG_VER)-1_amd64.deb && { ok=1; break; }; \
+		sleep 5; done && test -n "$$ok" && \
+	dpkg-deb -x $(MG_ROOT)/memgraph.deb.part $(MG_ROOT) && rm $(MG_ROOT)/memgraph.deb.part
 	LD_LIBRARY_PATH=$(MG_ROOT)/usr/lib/memgraph $(MG_ROOT)/usr/lib/memgraph/memgraph --version
-
-# The .deb of 3.12.0 lacks this header of mgp.hpp; it comes from the same tag of the source.
-$(MG_ROOT)/extra/text_search_config.hpp:
-	mkdir -p $(MG_ROOT)/extra && curl -fL --retry 5 -o $@ \
-		https://raw.githubusercontent.com/memgraph/memgraph/v$(MG_VER)/include/text_search_config.hpp
 
 # A venv even where python3-venv is missing: without pip, then get-pip.
 $(VENV)/.ok: requirements.txt
@@ -90,7 +90,7 @@ $(PARAMS):
 
 module: $(MG_HOME)/modules/gpc.so $(MG_HOME)/modules/khop.so
 
-MG_DEPS  := $(MG_ROOT)/usr/lib/memgraph/memgraph $(MG_ROOT)/extra/text_search_config.hpp
+MG_DEPS  := $(MG_ROOT)/usr/lib/memgraph/memgraph include/text_search_config.hpp
 
 $(MG_HOME)/modules/gpc.so: bench/gpc_khop.cpp t4/*.cpp t4/*.hpp $(MG_DEPS)
 	mkdir -p $(dir $@) && $(CXX) $(MODFLAGS) -o $@ bench/gpc_khop.cpp t4/t4store.cpp
