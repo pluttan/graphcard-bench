@@ -1,0 +1,206 @@
+# DGX A100 (2 x AMD EPYC 7742, 8 x A100-SXM4-80GB), docker run of graphcard-bench, 10-11.11.2026.
+# The good run of run-<host>.log; a second run of an older image wrote over the archive.
+# The host name is replaced with dgx.
+mkdir -p /gcb/data/sf1 && tar -C /gcb/data/sf1 -xJf dataset/sf1.tar.xz && touch /gcb/data/sf1/load/transfer2.csv
+test -f /gcb/data/sf1/params/sf1_read_params/complex_1_param.csv && touch /gcb/data/sf1/params/sf1_read_params/complex_1_param.csv
+mkdir -p /gcb/run/modules/ && g++ -std=c++20 -O3 -march=native -fPIC -shared -pthread -I/gcb/memgraph/usr/include/memgraph -Iinclude -It4 -o /gcb/run/modules/gpc.so bench/gpc_khop.cpp t4/t4store.cpp
+In file included from bench/gpc_khop.cpp:35:
+/gcb/memgraph/usr/include/memgraph/mgp.hpp:169:111: warning: ‘diagnose_if’ attribute directive ignored [-Wattributes]
+  169 |       true, "mgp::memory must not be used as of v2.18.1. Please use MemoryDispatcherGuard instead.", "error")));
+      |                                                                                                               ^
+mkdir -p /gcb/run/modules/ && g++ -std=c++20 -O3 -march=native -fPIC -shared -pthread -I/gcb/memgraph/usr/include/memgraph -Iinclude -It4 -o /gcb/run/modules/khop.so bench/khop.cpp
+In file included from bench/khop.cpp:14:
+/gcb/memgraph/usr/include/memgraph/mgp.hpp:169:111: warning: ‘diagnose_if’ attribute directive ignored [-Wattributes]
+  169 |       true, "mgp::memory must not be used as of v2.18.1. Please use MemoryDispatcherGuard instead.", "error")));
+      |                                                                                                               ^
+nice -n 10 bench/mg.sh start
+memgraph up on 127.0.0.1:7687, pid 50
+cd bench && nice -n 10 /gcb/venv/bin/python -u load.py /gcb/data/sf1/load
+    0.0 s  STORAGE MODE IN_MEMORY_ANALYTICAL
+    0.0 s  MATCH (n) DETACH DELETE n
+    0.0 s  CREATE INDEX ON :Account(id)
+    1.1 s  LOAD CSV FROM "/gcb/data/sf1/load/account2.csv" WITH HEADER DELIMITER "|" AS row CREATE (:
+   12.9 s  LOAD CSV FROM "/gcb/data/sf1/load/transfer2.csv" WITH HEADER DELIMITER "|" AS row MATCH (a
+   20.4 s  LOAD CSV FROM "/gcb/data/sf1/load/withdraw2.csv" WITH HEADER DELIMITER "|" AS row MATCH (a
+    4.6 s  STORAGE MODE IN_MEMORY_TRANSACTIONAL
+MATCH (n:Account) RETURN count(n) AS c -> 264075
+MATCH ()-[e:transfer]->() RETURN count(e) AS c -> 1379527
+MATCH ()-[e:withdraw]->() RETURN count(e) AS c -> 2011359
+[['vm_max_map_count', 262144], ['memory_res', '669.52MiB'], ['peak_memory_res', '669.52MiB'], ['disk_usage', '390.31MiB'], ['memory_tracked', '622.57MiB'], ['memory_limit', '1.96TiB']]
+mkdir -p build && g++ -std=c++17 -O3 -march=native -pthread -o build/cpubench bench/cpubench.cpp
+mkdir -p build && g++ -O3 -march=native -pthread -o build/bw bench/bw.cpp
+mkdir -p /gcb/results/dgx-sf1
+make -s machine > /gcb/results/dgx-sf1/machine.txt
+for t in 1 8 $(( 256 / 2 )) 256; do nice -n 10 ./build/bw $t; done | tee /gcb/results/dgx-sf1/bw.txt
+threads   1  read    20.3 GB/s
+threads   8  read   102.3 GB/s
+threads 128  read   112.1 GB/s
+threads 256  read   107.5 GB/s
+for n in 1000000 16000000; do nice -n 10 ./build/cpubench $n 256; done | tee /gcb/results/dgx-sf1/cpubench.txt
+INS      map        1000000   1    133.42 ns      7.50 Mkeys/s
+INS      hash       1000000   1     22.69 ns     44.07 Mkeys/s
+BUILD    sorted     1000000   1     74.95 ns     13.34 Mkeys/s
+SRCH     map        1000000   1    601.76 ns      1.66 Mkeys/s
+SRCH     sorted     1000000   1    279.63 ns      3.58 Mkeys/s
+SRCH     hash       1000000   1     28.86 ns     34.65 Mkeys/s
+SRCHmiss map        1000000   1    585.88 ns      1.71 Mkeys/s
+SRCHmiss sorted     1000000   1    208.17 ns      4.80 Mkeys/s
+SRCHmiss hash       1000000   1     53.95 ns     18.54 Mkeys/s
+NEXT     map        1000000   1    651.98 ns      1.53 Mkeys/s
+NEXT     sorted     1000000   1    214.64 ns      4.66 Mkeys/s
+SRCH     map        1000000 256      4.42 ns    226.20 Mkeys/s
+SRCH     sorted     1000000 256      1.63 ns    614.72 Mkeys/s
+SRCH     hash       1000000 256      0.27 ns   3733.64 Mkeys/s
+AND      sorted     1000000   1      1.52 ns    656.94 Mkeys/s
+OR       sorted     1000000   1      1.95 ns    512.05 Mkeys/s
+NOT      sorted     1000000   1      1.45 ns    691.33 Mkeys/s
+GR       sorted     1000000   1      1.14 ns    875.18 Mkeys/s
+AND      map        1000000   1     51.60 ns     19.38 Mkeys/s
+AND      sorted     1000000 256      0.21 ns   4843.25 Mkeys/s
+INS      map       16000000   1    225.97 ns      4.43 Mkeys/s
+INS      hash      16000000   1     38.09 ns     26.25 Mkeys/s
+BUILD    sorted    16000000   1     95.68 ns     10.45 Mkeys/s
+SRCH     map       16000000   1   1490.16 ns      0.67 Mkeys/s
+SRCH     sorted    16000000   1    659.08 ns      1.52 Mkeys/s
+SRCH     hash      16000000   1     28.22 ns     35.43 Mkeys/s
+SRCHmiss map       16000000   1   1386.41 ns      0.72 Mkeys/s
+SRCHmiss sorted    16000000   1    689.71 ns      1.45 Mkeys/s
+SRCHmiss hash      16000000   1     53.37 ns     18.74 Mkeys/s
+NEXT     map       16000000   1   1399.08 ns      0.71 Mkeys/s
+NEXT     sorted    16000000   1    582.60 ns      1.72 Mkeys/s
+SRCH     map       16000000 256     14.83 ns     67.43 Mkeys/s
+SRCH     sorted    16000000 256     25.33 ns     39.47 Mkeys/s
+SRCH     hash      16000000 256      1.45 ns    690.66 Mkeys/s
+AND      sorted    16000000   1      1.31 ns    763.33 Mkeys/s
+OR       sorted    16000000   1      1.97 ns    508.59 Mkeys/s
+NOT      sorted    16000000   1      1.23 ns    815.22 Mkeys/s
+GR       sorted    16000000   1      1.38 ns    726.52 Mkeys/s
+AND      map       16000000   1     38.83 ns     25.75 Mkeys/s
+AND      sorted     1000000 256      0.18 ns   5460.87 Mkeys/s
+cd bench && nice -n 10 /gcb/venv/bin/python -u batch.py 1 2 3 --params /gcb/data/sf1/params/sf1_read_params/complex_1_param.csv | tee /gcb/results/dgx-sf1/batch-tcr1.txt
+737 start accounts in one query
+hops 1: reached 2864, edges 13166
+  cypher  exec      9.16 ms     1.44 M edges/s  parse+plan 36.11 ms
+  module  exec      9.80 ms     1.34 M edges/s  parse+plan 1.40 ms
+hops 2: reached 8806, edges 51710
+  cypher  exec     25.39 ms     2.04 M edges/s  parse+plan 1.05 ms
+  module  exec     25.81 ms     2.00 M edges/s  parse+plan 1.42 ms
+hops 3: reached 20307, edges 126937
+  cypher  exec     47.03 ms     2.70 M edges/s  parse+plan 0.48 ms
+  module  exec     57.05 ms     2.23 M edges/s  parse+plan 1.43 ms
+cd bench && nice -n 10 /gcb/venv/bin/python -u batch.py 1 2 3 4 --hubs 100 | tee /gcb/results/dgx-sf1/batch-hubs.txt
+100 start accounts in one query
+hops 1: reached 28203, edges 56022
+  cypher  exec     29.33 ms     1.91 M edges/s  parse+plan 0.31 ms
+  module  exec     41.12 ms     1.36 M edges/s  parse+plan 0.88 ms
+hops 2: reached 88281, edges 421479
+  cypher  exec    134.27 ms     3.14 M edges/s  parse+plan 0.40 ms
+  module  exec    178.12 ms     2.37 M edges/s  parse+plan 0.74 ms
+hops 3: reached 217934, edges 1189563
+  cypher  exec    384.40 ms     3.09 M edges/s  parse+plan 0.40 ms
+  module  exec    462.70 ms     2.57 M edges/s  parse+plan 0.97 ms
+hops 4: reached 491116, edges 2868145
+  cypher  exec    809.26 ms     3.54 M edges/s  parse+plan 0.45 ms
+  module  exec   1103.23 ms     2.60 M edges/s  parse+plan 1.02 ms
+cd bench && nice -n 10 /gcb/venv/bin/python -u parallel.py 3 4 1 8 16 32 64 128 256 | tee /gcb/results/dgx-sf1/parallel-hubs3.txt
+  1 clients:    3.48 M edges/s  (4 queries in 1.4 s)
+  8 clients:   26.21 M edges/s  (32 queries in 1.5 s)
+ 16 clients:   39.63 M edges/s  (64 queries in 1.9 s)
+ 32 clients:   33.57 M edges/s  (128 queries in 4.5 s)
+ 64 clients:  101.85 M edges/s  (256 queries in 3.0 s)
+128 clients:  100.28 M edges/s  (512 queries in 6.1 s)
+256 clients:   95.09 M edges/s  (1024 queries in 12.8 s)
+cd bench && nice -n 10 /gcb/venv/bin/python -u gpc_bench.py 1 2 3 4 --params /gcb/data/sf1/params/sf1_read_params/complex_1_param.csv | tee /gcb/results/dgx-sf1/gpc-tcr1.txt
+gpc.load: 1379527 edges, 264075 accounts, 4387420 words of T4, 4.6 s
+737 start accounts
+hops 1: all 737 starts agree, reached 2864, edges in window 4561, NGR 737, NEXTC 4561
+  memgraph exec     11.18 ms | card     4.40 ms + host    0.24 ms =     4.64 ms |    2.4 times
+hops 2: all 737 starts agree, reached 8806, edges in window 14753, NGR 3601, NEXTC 14753
+  memgraph exec     24.42 ms | card     9.08 ms + host    0.76 ms =     9.84 ms |    2.5 times
+hops 3: all 737 starts agree, reached 20307, edges in window 34377, NGR 9543, NEXTC 34377
+  memgraph exec     54.38 ms | card    14.65 ms + host    1.75 ms =    16.40 ms |    3.3 times
+hops 4: all 737 starts agree, reached 43030, edges in window 73581, NGR 21044, NEXTC 73581
+  memgraph exec    109.19 ms | card    22.41 ms + host    3.60 ms =    26.01 ms |    4.2 times
+for o in "--hubs 100" "--hubs 1000" "--random 10000"; do (cd bench && nice -n 10 \
+	/gcb/venv/bin/python -u gpc_batch.py 1 2 3 4 $o --clients 256 --threads 32); done | tee /gcb/results/dgx-sf1/gpc-batch.txt
+gpc.load: 1379527 edges, 4387420 words, 2.7 s
+100 starts (busiest), 256 Memgraph clients, 32 merge threads
+hops 1: all starts agree, reached 28203, edges in window 55419, NGR 100, NEXTC 55419
+  memgraph one query    0.034 s | 256 clients    0.104 s | card  0.0013 s + host  0.0074 s =  0.0087 s |    3.9 and  12.0 times
+hops 2: all starts agree, reached 88281, edges in window 204348, NGR 28303, NEXTC 204348
+  memgraph one query    0.147 s | 256 clients    0.191 s | card  0.0033 s + host  0.0164 s =  0.0197 s |    7.4 and   9.6 times
+hops 3: all starts agree, reached 217934, edges in window 515987, NGR 88381, NEXTC 515987
+  memgraph one query    0.417 s | 256 clients    0.208 s | card  0.0067 s + host  0.0239 s =  0.0306 s |   13.6 and   6.8 times
+hops 4: all starts agree, reached 491116, edges in window 1200021, NGR 218034, NEXTC 1200021
+  memgraph one query    1.024 s | 256 clients    0.242 s | card  0.0143 s + host  0.0962 s =  0.1105 s |    9.3 and   2.2 times
+gpc.load: 1379527 edges, 4387420 words, 3.0 s
+1000 starts (busiest), 256 Memgraph clients, 32 merge threads
+hops 1: all starts agree, reached 102275, edges in window 198256, NGR 1000, NEXTC 198256
+  memgraph one query    0.138 s | 256 clients    0.171 s | card  0.0025 s + host  0.0101 s =  0.0127 s |   10.9 and  13.5 times
+hops 2: all starts agree, reached 331602, edges in window 732755, NGR 103275, NEXTC 732755
+  memgraph one query    0.560 s | 256 clients    0.202 s | card  0.0082 s + host  0.0307 s =  0.0389 s |   14.4 and   5.2 times
+hops 3: all starts agree, reached 863097, edges in window 1933078, NGR 332602, NEXTC 1933078
+  memgraph one query    1.706 s | 256 clients    2.093 s | card  0.0207 s + host  0.0733 s =  0.0940 s |   18.1 and  22.3 times
+hops 4: all starts agree, reached 2064120, edges in window 4710214, NGR 864097, NEXTC 4710214
+  memgraph one query    3.907 s | 256 clients    0.514 s | card  0.0517 s + host  0.1288 s =  0.1805 s |   21.6 and   2.8 times
+gpc.load: 1379527 edges, 4387420 words, 3.2 s
+10000 starts (random), 256 Memgraph clients, 32 merge threads
+hops 1: all starts agree, reached 33929, edges in window 54822, NGR 10000, NEXTC 54822
+  memgraph one query    0.125 s | 256 clients    0.328 s | card  0.0011 s + host  0.0058 s =  0.0069 s |   18.0 and  47.3 times
+hops 2: all starts agree, reached 136747, edges in window 238990, NGR 43929, NEXTC 238990
+  memgraph one query    0.295 s | 256 clients    0.194 s | card  0.0046 s + host  0.0130 s =  0.0176 s |   16.7 and  11.0 times
+hops 3: all starts agree, reached 421453, edges in window 780935, NGR 146747, NEXTC 780935
+  memgraph one query    0.831 s | 256 clients    0.223 s | card  0.0113 s + host  0.0432 s =  0.0545 s |   15.3 and   4.1 times
+hops 4: all starts agree, reached 1172637, edges in window 2264675, NGR 431453, NEXTC 2264675
+  memgraph one query    2.302 s | 256 clients    0.723 s | card  0.0304 s + host  0.4071 s =  0.4375 s |    5.3 and   1.7 times
+results in /gcb/results/dgx-sf1
+bench/mg.sh stop
+stopped
+tar -czf results-dgx-sf1.tgz -C results dgx-sf1
+send results-dgx-sf1.tgz
+/gcb/venv/bin/python -m pip install -q cupy-cuda12x "nvidia-cuda-runtime-cu12==12.2.*" "nvidia-cuda-nvrtc-cu12==12.2.*" \
+	nvidia-curand-cu12
+mkdir -p /gcb/results/dgx-sf1 && CUDA_VISIBLE_DEVICES=0 /gcb/venv/bin/python -u bench/gpubench.py 1000000 16000000 128000000 | tee /gcb/results/dgx-sf1/gpu.txt
+NVIDIA A100-SXM4-80GB
+H2D          1000000     0.507 ns    1973.48 Mkeys/s
+D2H          1000000     0.875 ns    1142.26 Mkeys/s
+BUILD        1000000     0.544 ns    1839.10 Mkeys/s
+SRCH         1000000     0.265 ns    3770.51 Mkeys/s
+SRCHmiss     1000000     0.260 ns    3844.73 Mkeys/s
+NEXT         1000000     0.200 ns    5008.01 Mkeys/s
+SRCH         1000000     0.205 ns    4866.23 Mkeys/s  270.2 W    18.01 Mkeys/J
+SRCH1        1000000 146568.505 ns       0.01 Mkeys/s
+AND          1000000     0.109 ns    9212.85 Mkeys/s
+NOT          1000000     0.117 ns    8528.93 Mkeys/s
+OR           1000000     0.297 ns    3361.66 Mkeys/s
+AND          1000000     0.125 ns    7977.99 Mkeys/s  147.1 W    54.22 Mkeys/J
+GR           1000000     0.262 ns    3814.70 Mkeys/s
+H2D         16000000     0.477 ns    2097.26 Mkeys/s
+D2H         16000000     1.450 ns     689.56 Mkeys/s
+BUILD       16000000     0.394 ns    2539.82 Mkeys/s
+SRCH        16000000     0.801 ns    1248.70 Mkeys/s
+SRCHmiss    16000000     0.801 ns    1247.70 Mkeys/s
+NEXT        16000000     0.716 ns    1397.09 Mkeys/s
+SRCH        16000000     0.801 ns    1247.82 Mkeys/s  221.0 W     5.65 Mkeys/J
+SRCH1       16000000 147042.660 ns       0.01 Mkeys/s
+AND         16000000     0.056 ns   17775.88 Mkeys/s
+NOT         16000000     0.059 ns   16919.33 Mkeys/s
+OR          16000000     0.159 ns    6272.58 Mkeys/s
+AND         16000000     0.056 ns   17776.15 Mkeys/s  288.1 W    61.69 Mkeys/J
+GR          16000000     0.024 ns   41118.41 Mkeys/s
+H2D        128000000     0.481 ns    2079.38 Mkeys/s
+D2H        128000000     1.437 ns     696.10 Mkeys/s
+BUILD      128000000     0.373 ns    2681.94 Mkeys/s
+SRCH       128000000     1.091 ns     916.48 Mkeys/s
+SRCHmiss   128000000     1.089 ns     918.15 Mkeys/s
+NEXT       128000000     0.993 ns    1006.64 Mkeys/s
+SRCH       128000000     1.090 ns     917.40 Mkeys/s  226.9 W     4.04 Mkeys/J
+SRCH1      128000000 150835.852 ns       0.01 Mkeys/s
+AND        128000000     0.056 ns   17909.59 Mkeys/s
+NOT        128000000     0.059 ns   17001.02 Mkeys/s
+OR         128000000     0.155 ns    6440.15 Mkeys/s
+AND        128000000     0.056 ns   17855.59 Mkeys/s  285.8 W    62.48 Mkeys/J
+GR         128000000     0.011 ns   87535.01 Mkeys/s
+tar -czf results-dgx-sf1.tgz -C results dgx-sf1
+send results-dgx-sf1.tgz
+in /out: results-dgx-sf1.tgz run-dgx.log 
